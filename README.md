@@ -19,7 +19,7 @@ It runs without any hardware: a bundled simulator generates realistic engine tra
 | **Serial** | CSV log lines at 115200 8N1 using `termios`; non-blocking, so a slow port never stalls decoding |
 | **UDP** | JSON events, fire-and-forget, for the dashboard |
 | **Qt dashboard** | Custom-painted gauges with warning/fault bands, a state banner, a DTC list, and a transition log |
-| **Testing** | 41 GoogleTest unit and end-to-end tests, including 5 recorded J1939 traces replayed through the full pipeline |
+| **Testing** | 41 GoogleTest unit and end-to-end tests, including 5 simulated J1939 traces replayed through the full pipeline |
 
 ## Architecture
 
@@ -124,6 +124,13 @@ ctest --test-dir build --output-on-failure
 
 The Qt dashboard is optional. If Qt 6 isn't installed, CMake skips it.
 
+**macOS / Windows (Docker):** builds, tests, and replay mode work in a container (live `vcan` needs a Linux host):
+
+```bash
+docker build -t j1939 .
+docker run -it --rm -v "$PWD":/work j1939 bash
+```
+
 ## Run
 
 **Live demo** (vcan0, virtual serial port, simulator, monitor, dashboard):
@@ -172,6 +179,17 @@ This floods `vcan0` with EEC1 frames. The monitor then reports:
 
 The benchmark is only valid if the reported `frames` count equals the number sent. A lower count means the kernel socket buffer overflowed, so the rate exceeded capacity.
 
+### Measured results
+
+Replay benchmark (186,009-frame simulated trace, as fast as possible, serial logging on), Apple M2 in Docker:
+
+| Metric | Result |
+|---|---|
+| Throughput | 400,000+ frames/s (lowest of 4 runs) |
+| Per-frame latency | p50 1 µs, p99 5 µs |
+
+For context, a fully loaded 250 kbit/s J1939 bus carries about 1,850 frames/s. Live SocketCAN benchmarking needs a Linux host with the `vcan` module; Docker Desktop's kernel does not include it.
+
 ## Serial log format
 
 ```
@@ -188,7 +206,7 @@ STATE,<t_ms>,<from>,<to>,<reason>
 | `Decoder` / `Dm1` | scaling and offsets, error/not-available rejection, boundary raw values, short payloads, 19-bit SPNs |
 | `Bam` | reassembly, out-of-order abort, T1 timeout, per-source sessions, invalid announce, RTS/CTS ignored |
 | `Fsm` | every transition, hysteresis, recovery hold, relapse, stale data |
-| `Traces` | 5 recorded traces replayed end to end (normal, overheat, comms loss, corrupt BAM, full cycle) |
+| `Traces` | 5 simulated traces replayed end to end (normal, overheat, comms loss, corrupt BAM, full cycle) |
 
 ## Limitations and next steps
 
@@ -196,3 +214,4 @@ STATE,<t_ms>,<from>,<to>,<reason>
 - **Fault source:** state is driven by a single engine ECU's coolant data and DM1. Tracking faults per source address would be the next step.
 - **Serial settings:** the port's baud rate is fixed at 115200.
 - **Kernel timestamps:** `SO_TIMESTAMP` receive timestamps would allow bus-to-output latency instead of user-space latency.
+- **Live bus testing:** validated so far with trace replay; the SocketCAN path has not yet been run against a live `vcan` or hardware interface.
