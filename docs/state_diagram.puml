@@ -1,0 +1,18 @@
+@startuml state_diagram
+title Engine Fault State Machine
+[*] --> Normal
+Normal --> Warning : coolant >= 100 C
+Normal --> Fault : fault condition
+Warning --> Fault : fault condition
+Warning --> Normal : coolant < 95 C (hysteresis)
+Fault --> Recovery : no fault condition\nand coolant < 100 C
+Recovery --> Fault : fault condition
+Recovery --> Warning : coolant >= 100 C
+Recovery --> Normal : clean for 5 s
+note right of Fault
+  fault condition =
+  coolant >= 110 C
+  OR active DM1 DTC
+  OR no coolant data for 3 s
+end note
+@enduml

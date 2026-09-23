@@ -1,0 +1,70 @@
+@startuml class_diagram
+title J1939 Vehicle Bus Monitor - Class Diagram
+skinparam classAttributeIconSize 0
+
+interface FrameSource {
+  +read(timeout_ms): optional<CanFrame>
+  +finished(): bool
+}
+class SocketCanSource
+class LogFileSource
+FrameSource <|.. SocketCanSource
+FrameSource <|.. LogFileSource
+
+class Monitor {
+  +add_sink(Sink*)
+  +process(CanFrame)
+  +tick(now_us)
+  +stats(): MonitorStats
+  -handle_message(pgn, source, data, len, t)
+  -run_state_machine(now_us)
+}
+class BamReassembler {
+  +on_frame(CanFrame, Id): optional<Message>
+  -sessions_: map<source, Session>
+}
+class FaultStateMachine {
+  +update_coolant(temp_c, now_us)
+  +update_active_dtcs(count)
+  +step(now_us): optional<Transition>
+  +state(): State
+}
+class Thresholds
+enum State {
+  Normal
+  Warning
+  Fault
+  Recovery
+}
+
+interface Sink {
+  +on_signal(Signal, source, t)
+  +on_dm1(Dm1, source, t)
+  +on_transition(Transition)
+}
+class SerialLogger
+class UdpForwarder
+class ConsoleSink
+Sink <|.. SerialLogger
+Sink <|.. UdpForwarder
+Sink <|.. ConsoleSink
+
+class Decoder <<utility>> {
+  +parse_id(uint32): Id
+  +decode_signals(pgn, data, len): vector<Signal>
+  +decode_dm1(data, len): Dm1
+}
+
+Monitor *-- BamReassembler
+Monitor *-- FaultStateMachine
+FaultStateMachine *-- Thresholds
+FaultStateMachine --> State
+Monitor o-- "0..*" Sink
+Monitor ..> Decoder
+Monitor ..> FrameSource : fed by main loop
+
+class Dashboard <<Qt>>
+class Gauge <<Qt>>
+Dashboard *-- "3" Gauge
+UdpForwarder ..> Dashboard : JSON over UDP
+@enduml

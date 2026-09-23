@@ -1,0 +1,7 @@
+build/
+serial_capture.log
+*.user
+.vscode/
+.idea/
+.dist/
+dash.png
